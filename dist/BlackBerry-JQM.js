@@ -31,7 +31,6 @@
 		},
 
 		_create: function() {
-
 			this.actionBarArea = $( this.element );
 			this.showActionOverflow = this.showTabOverflow = false;
 
@@ -73,15 +72,17 @@
 			for (var i = 0; i < tabList.length; i++) {
 				item = tabList.eq(i);
 				//add to tab overflow
-				if(overflowNeeded) {
+				if(overflowNeeded || item.data("overflow")) {
 					var clone = item.clone();
 					this._addToTabOverflow(clone);
 
-					if (i > maxTabs - 1 ) {
+					if (i > maxTabs - 1 || item.data("overflow")) {
 						item.remove();
 						continue;
 					} else {
-						clone.attr('data-for',clone.attr("id")).attr('id',"");
+						if(cloneId = clone.attr("id")) {
+							clone.attr('data-for', cloneId).attr('id',"");
+						}
 					}
 				}
 				//Create Tab item
@@ -90,7 +91,7 @@
 
 			for (i = 0; i < actionList.length; i++) {
 				item = actionList.eq(i);
-				if (i > maxActions - 1) {
+				if (i > maxActions - 1 || item.data("overflow")) {
 					//add to action overflow
 					this._addToActionOverflow(item);
 					continue;
@@ -100,8 +101,9 @@
 			}
 
 			if( this.showActionOverflow ) {
+				this.overflowActionMenu.find('.menuItem').bind('vclick', {context: self}, this._hideActionOverflow);
+
 				this.overflowActionMenu.bind('vclick', function(event){
-					event.stopPropagation();
 					return false;
 				});
 				this._createOverflowButton(this.overflowActionMenu)
@@ -109,16 +111,15 @@
 					.appendTo(actions)
 					.bind('vclick', function(){
 						self.overflowActionMenu.addClass("showMenu");
-						setTimeout(function(){
-							$(document).one('vclick', function (){
-								self.overflowActionMenu.removeClass("showMenu");
-							});
-						},0);
+
+						setTimeout(function() {
+							$(document).bind('vclick', {context: self}, self._hideActionOverflow);
+						}, 0);
 					});
 			}
 
 			if( this.showTabOverflow ) {
-				$(".overflowMenu.left .menuItem").bind('vclick',function () {
+				this.overflowTabMenu.find(".menuItem").bind('vclick',function () {
 					$('.ui-page-active, .ui-footer, .ui-header').removeClass('showTabOverflow');
 					$(this).find('img').clone().appendTo($('.tabs').first());
 					$('<div class="action-bar-action-item-text"><p>' + $(this).text() + '</p></div>').appendTo($('.tabs').first());
@@ -131,21 +132,23 @@
 
 					});
 				});
-				this.overflowTabMenu.bind('vclick', function(){
+				this.overflowTabMenu.bind('vclick', function() {
 					return false;
 				});
 				this._createOverflowButton(this.overflowTabMenu)
 					.addClass("tabs")
 					.addClass("action-bar-tab-item")
 					.prependTo(actions)
-					.bind('vclick', function(event){
-						$('.ui-page-active, .ui-footer-fixed, .ui-header-fixed').addClass('showTabHelper').addClass('showTabOverflow');
+					.bind('vclick', function(event) {
+						$('.ui-page-active, .ui-footer-fixed, .ui-header-fixed')
+							.addClass('showTabHelper')
+							.addClass('showTabOverflow');
 						event.stopPropagation();
-						setTimeout(function(){
-							$(document).not(self.overflowActionMenu).one('vclick', function (){
+						setTimeout(function() {
+							$(document).one('vclick', function () {
 								$('.ui-page-active, .ui-footer-fixed, .ui-header-fixed')
 									.removeClass('showTabOverflow')
-									.one("webkitTransitionEnd",function(){
+									.one("webkitTransitionEnd",function() {
 										$(this).removeClass('showTabHelper');
 									});
 
@@ -158,13 +161,19 @@
 
 			this.actionBarArea.append(bar);
 
-			var itemsLen = this.actionBarArea.find(".action-bar-action-item, .action-bar-overflow").length,
-				itemsize = "action-bar-grid-" + ( tabList.length > 0 ? ( actionList.length > 0 ? "tabAction" : "tabs" ) : "actions");
+			var itemsLen, actionBarItems;
 
+			if (tabList.length > 0) {
+				actionBarItems = this.actionBarArea.find(".action-bar-tab-item").not(".tabs");
+				itemsize = "action-bar-grid-" + ( actionList.length > 0 ? "tabAction" : "tabs");
+			} else {
+				actionBarItems = this.actionBarArea.find(".action-bar-action-item");
+				itemsize = "action-bar-grid-actions";
+			}
+
+			itemsLen = actionBarItems.length;
 			itemsize +=  "-" + ( ( itemsLen > 5 ) ? "e" : String.fromCharCode( 96 + itemsLen ) );
-
-			$(".action-bar-action-item").addClass(itemsize);
-
+			actionBarItems.addClass(itemsize);
 
 			$( '.action-bar-action-item' )
 				.bind( 'vmousedown', function( event ) {
@@ -227,6 +236,12 @@
 			}
 
 			return item;
+		},
+
+		_hideActionOverflow: function (event) {
+			var self = event.data.context;
+			self.overflowActionMenu.removeClass("showMenu");
+			$(document).unbind('vclick', self._hideActionOverflow);
 		},
 
 		_addToTabOverflow: function(item) {
